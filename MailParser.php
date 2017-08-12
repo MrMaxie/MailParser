@@ -1,53 +1,176 @@
 <?php
 /**
- * Class allowing to simple parse piped mails
+ * Class allowing to simple parse raw mails
  * @author Maxie
- * @license Free
+ * @license MIT
+ * @version 0.2
  */
 class MailParser {
-	/**
-	 * All of headers
-	 * @var array
-	 */
-	private $headers = [];
 	/**
 	 * Raw content
 	 * @var string
 	 */
-	private $content = '';
+	private $raw = '';
 	/**
-	 * All contents
+	 * All headers
 	 * @var array
 	 */
-	private $contents = [];
+	private $headers = [];
 	/**
-	 * All attachements
+	 * All bodies
 	 * @var array
 	 */
-	private $attachments = [];
-	private $HTMLWhiteList = [
+	private $bodies = [];
+	/**
+	 * Whitelist of HTML elements
+	 * @var array
+	 */
+	private $whitelist = [
 		'a','abbr','acronym','address','area','b','bdo','big','blockquote','br','button','caption','center','cite','code','col','colgroup','dd','del','dfn','dir','div','dl','dt','em','fieldset','font','form','h1','h2','h3','h4','h5','h6','hr','i','img','input','ins','kbd','label','legend','li','map','menu','ol','optgroup','option','p','pre','q','s','samp','select','small','span','strike','strong','sub','sup','table','tbody','td','textarea','tfoot','th','thead','u','tr','tt','u','ul','var'
 	];
 	/**
-	 * @param string $content Content of e-mail
+	 * Allowed MIMES of attachments
+	 * @var array
 	 */
-	function __construct($content = '') {
-		$this->setContent($content);
+	private $attachmentsMIMEs = [
+		'application/zip',
+		'image/tiff',
+		'application/x-compressed',
+		'application/x-tar',
+		'application/pdf',
+		'video/mpeg',
+		'audio/mpeg',
+		'image/jpeg',
+		'application/msword',
+		'image/bmp',
+		'image/png',
+		'image/gif'
+	];
+	/**
+	 * @param string $raw
+	 */
+	function __construct($raw='') {
+		$this->setRaw($raw);
 	}
 	/**
-	 * Set new text
-	 * @param string $text Content of e-mail
+	 * Overwrite raw version of mail
+	 * @param string $raw
 	 */
-	function setContent($content = '') {
-		if(is_string($content))
-			$this->content = $content;
+	function setRaw($raw='') {
+		if(is_string($raw))
+			$this->raw = $raw;
+	}
+	/**
+	 * Returns raw version of mail
+	 * @return string
+	 */
+	function getRaw() {
+		return $this->raw;
+	}
+	/**
+	 * Set-up new HTML whitelist erasing old one 
+	 * @param array $list
+	 */
+	function setWhitelist(array $list) {
+		$this->whitelist = [];
+		foreach($list as $tag) {
+			$this->pushWhitelist($tag);
+		}
+	}
+	/**
+	 * Returns array of HTML tags 
+	 * @return array
+	 */
+	function getWhitelist() {
+		return $this->whitelist;
+	}
+	/**
+	 * Push one or multiple tags into whitelist
+	 * @param array|string ...
+	 */
+	function pushWhitelist() {
+		foreach( func_get_args() as $tag ) {
+			if(is_string($tag)
+			&& !in_array($tag, $this->whitelist)) {
+				$this->whitelist[] = $tag;
+				continue;
+			}
+			if(is_array($tag)) {
+				call_user_method_array(__METHOD__, $this, $tag);
+			}
+		}
+	}
+	/**
+	 * Remove given variables from HTML whitelist
+	 * @param array|string ...
+	 */
+	function removeWhitelist() {
+		foreach( func_get_args() as $tag ) {
+			if(is_string($tag)
+			&& in_array($tag, $this->whitelist)) {
+				unset($this->whitelist[array_search($tag, $this->whitelist)]);
+				continue;
+			}
+			if(is_array($tag)) {
+				call_user_method_array(__METHOD__, $this, $tag);
+			}
+		}
+	}
+	/**
+	 * Set-up new new list of allowed MIMES of attachments
+	 * @param array $list
+	 */
+	function setAllowedMIMEs(array $list) {
+		$this->attachmentsMIMEs = [];
+		foreach($list as $tag) {
+			$this->pushWhitelist($tag);
+		}
+	}
+	/**
+	 * Returns array of allowed MIMES of attachments
+	 * @return array
+	 */
+	function getAllowedMIMEs() {
+		return $this->attachmentsMIMEs;
+	}
+	/**
+	 * Push one or multiple values into allowed MIMES
+	 * @param array|string ...
+	 */
+	function pushAllowedMIMEs() {
+		foreach( func_get_args() as $tag ) {
+			if(is_string($tag)
+			&& !in_array($tag, $this->attachmentsMIMEs)) {
+				$this->attachmentsMIMEs[] = $tag;
+				continue;
+			}
+			if(is_array($tag)) {
+				call_user_method_array(__METHOD__, $this, $tag);
+			}
+		}
+	}
+	/**
+	 * Remove given variables from allowed MIMES of attachments
+	 * @param array|string ...
+	 */
+	function removeAllowedMIMEs() {
+		foreach( func_get_args() as $tag ) {
+			if(is_string($tag)
+			&& in_array($tag, $this->attachmentsMIMEs)) {
+				unset($this->attachmentsMIMEs[array_search($tag, $this->attachmentsMIMEs)]);
+				continue;
+			}
+			if(is_array($tag)) {
+				call_user_method_array(__METHOD__, $this, $tag);
+			}
+		}
 	}
 	/**
 	 * Set-up array as config
 	 * @param string $name
 	 * @param string $value
 	 */
-	private function setHeader($name, $value) {
+	function setHeader($name, $value) {
 		$this->parseHeader($this->headers, $name, $value);
 	}
 	/**
@@ -56,15 +179,12 @@ class MailParser {
 	 * @param  string $name
 	 * @param  string $value
 	 */
-	private function parseHeader(&$h, $name, $value) {
+	function parseHeader(&$h, $name, $value) {
 		$name = strtolower($name);
 		switch($name) {
 			case 'to':
 			case 'from':
-				$h[$name] = $this->parseAdresses($value);
-				if($name === 'to' && count($h[$name])) {
-					$h[$name] = $h[$name][0];
-				}
+				$h[$name] = $this->parseAddresses($value);
 				break;
 			case 'date':
 				$h[$name] = strtotime($value);
@@ -113,7 +233,7 @@ class MailParser {
 	 * @param  srting $value
 	 * @return array
 	 */
-	private function parseAdresses($value) {
+	function parseAddresses($value) {
 		$temp = str_split($value);
 		$quoted = false;
 		$result = []; 
@@ -186,7 +306,7 @@ class MailParser {
 	 * @param  string $value
 	 * @return string
 	 */
-	private function parseNonASCII($value) {
+	function parseNonASCII($value) {
 		$result = '';
 		foreach(preg_split('/\s+/', $value) as $string){
 			if(preg_match('/^=\?(.+)\?(q|b)\?(.*?)\?=$/i', $string, $m)) {
@@ -212,7 +332,7 @@ class MailParser {
 	 * @param string $content
 	 * @return array
 	 */
-	private function parseHeaders(&$content) {
+	function parseHeaders(&$content) {
 		list($headers, $content) = preg_split('/^\s*$/m', $content, 2);
 		$data = [];
 		$collected = '';
@@ -265,7 +385,7 @@ class MailParser {
 	 * Discover and separate all of contents
 	 * @return array
 	 */
-	private function parseContent($headers, $content) {
+	function parseBody($headers, $content) {
 		$data = [];
 		if(isset($headers['boundary']) && $headers['boundary']) {
 			$boundary = $headers['boundary'];
@@ -273,7 +393,7 @@ class MailParser {
 			foreach(preg_split('/^\s*--'.$boundary.'\s*$/m', $content) as $subContent) {
 				$subContent = trim($subContent);
 				$subHeaders = $this->parseHeaders($subContent);
-				foreach($this->parseContent($subHeaders, $subContent) as $oneSubContent) {
+				foreach($this->parseBody($subHeaders, $subContent) as $oneSubContent) {
 					$data[] = $oneSubContent;
 				}
 			}
@@ -306,7 +426,7 @@ class MailParser {
 				$headers['content-type'] = '';
 			switch($headers['content-type']) {
 				case 'text/html':
-					$content = strip_tags($content, '<'.implode('><',$this->HTMLWhiteList).'>');
+					$content = strip_tags($content, '<'.implode('><',$this->whitelist).'>');
 					break;
 				case 'text/plain':
 					$content = htmlspecialchars($content, ENT_DISALLOWED|ENT_QUOTES|ENT_HTML5);
@@ -321,7 +441,7 @@ class MailParser {
 			}
 			$data[] = [
 				'headers' => $headers,
-				'content' => $content
+				'body' => $content
 			];
 		}
 		return $data;
@@ -332,56 +452,69 @@ class MailParser {
 	 * @return string
 	 */
 	function parse() {
-		$this->headers = $this->parseHeaders($this->content);
+		$this->headers = $this->parseHeaders($this->raw);
 		if(!isset($this->headers['content-type']))
 			$this->headers['content-type'] = '';
 		if(!isset($this->headers['boundary']))
 			$this->headers['boundary'] = false;
-		$this->contents = $this->parseContent(
+		$this->bodies = $this->parseBody(
 			$this->headers,
-			$this->content
+			$this->raw
 		);
-		$this->content = null;
+		$this->raw = null;
 	}
 	/**
 	 * Return contents possible to print
 	 * @return array
 	 */
-	function getViews() {
+	function getBodies($first=false) {
 		$result = [];
-		foreach( $this->contents as $view ) {
-			if(isset($view['headers']['content-type'])
-			&& in_array($view['headers']['content-type'], ['text/plain', 'text/html'])) {
-				$result[] = $view;
+		foreach( $this->bodies as $body ) {
+			if(isset($body['headers']['content-type'])) {
+				$result[] = $body;
 			}
 		}
 		return $result;
 	}
 	/**
+	 * Returns first found body with given mime
+	 * @param  string $mime
+	 * @return array
+	 */
+	function getBody($mime, $dummy=false) {
+		$result = [];
+		foreach( $this->bodies as $body ) {
+			if(isset($body['headers']['content-type'])
+			&& $body['headers']['content-type'] === $mime) {
+				return $body;
+			}
+		}
+		if($dummy){
+			return [
+				'headers' => [
+					'content-type' => $mime
+				],
+				'body' => ''
+			];
+		}
+		return false;
+	}
+	/**
 	 * Return contents possible to save as file
 	 * @return array
 	 */
-	function getAttachments() {
-		$mimes = [
-			'application/zip' => 'zip',
-			'image/tiff' => 'tiff',
-			'application/x-compressed' => 'tgz',
-			'application/x-tar' => 'tar',
-			'application/pdf' => 'pdf',
-			'video/mpeg' => 'mpeg',
-			'audio/mpeg' => 'mp3',
-			'image/jpeg' => 'jpeg',
-			'application/msword' => 'doc',
-			'image/bmp' => 'bmp',
-			'image/png' => 'png',
-			'image/gif' => 'gif'
-		];
+	function getAttachments($allowed=true) {
 		$result = [];
-		foreach( $this->contents as $view ) {
-			if(isset($view['headers']['content-type'])
-			&& array_key_exists($view['headers']['content-type'], $mimes)) {
-				$view['headers']['ext'] = $mimes[$view['headers']['content-type']];
-				$result[] = $view;
+		foreach( $this->bodies as $body ) {
+			if(isset($body['headers']['content-type'])
+			&& isset($body['headers']['is-attachment'])
+			&& $body['headers']['is-attachment'] === true){
+				if( $allowed
+				&& !in_array(
+						$body['headers']['content-type'],
+						$this->attachmentsMIMEs)
+				)	continue;
+				$result[] = $body;
 			}
 		}
 		return $result;
@@ -399,6 +532,8 @@ class MailParser {
 	 */
 	function getFrom() {
 		$r = [];
+		if(!isset($this->headers['from']))
+			return '';
 		foreach( $this->headers['from'] as $one ) {
 			$oneR = [];
 			if($one['name'])
@@ -415,6 +550,8 @@ class MailParser {
 	 */
 	function getTo() {
 		$r = [];
+		if(!isset($this->headers['to']))
+			return '';
 		foreach( $this->headers['to'] as $one ) {
 			$oneR = [];
 			if($one['name'])
@@ -424,5 +561,14 @@ class MailParser {
 			$r[] = implode(' ',$oneR);
 		}
 		return implode(', ', $r);
+	}
+	/**
+	 * Returns 'subject'
+	 * @return string
+	 */
+	function getSubject($alt='') {
+		if(isset($this->headers['subject']))
+			return $this->headers['subject'];
+		return $alt;
 	}
 }
