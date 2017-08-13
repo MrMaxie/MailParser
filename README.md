@@ -1,4 +1,4 @@
-# MailParser 0.2
+# MailParser 0.2.1
 PHP MailParser, no extensions required, converts raw mails into simple objects. Minimum version of PHP is **5.4** because I used a short array syntax.
 
 > If you are having trouble with a site that sends mails with parse them - post your problem in issues with a raw part that is incorrectly parsed
@@ -161,6 +161,18 @@ Returns headers from main context
   // ...
 ]
 ```
+
+### genID($minutes=10, $moreAccurate=false)
+- `$minutes` int
+- `$moreAccurate` bool
+
+Good function to ignore re-sent mails. It does not allow you to re-sent the content/entire email within the specified number of minutes. If you need to set a destination address based on `to` and you want to avoid saving again the same message for multiple recipients - use it!
+
+Hash together `subject`, `from`, `to`, plain text, html text of e-mail and add rounded to given minutes UNIX timestamp.
+Results string with **75** characters:
+`<timestamp>!<hash>`
+
+If `$moreAccurate` is `true` then hashed is entire parser itself.
 
 ### getFrom()
 Returns nice looking `from` header e.g `mark@domain.com, Mark Steve <marks@gmail.com>`

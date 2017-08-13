@@ -3,7 +3,7 @@
  * Class allowing to simple parse raw mails
  * @author Maxie
  * @license MIT
- * @version 0.2
+ * @version 0.2.1
  */
 class MailParser {
 	/**
@@ -570,5 +570,31 @@ class MailParser {
 		if(isset($this->headers['subject']))
 			return $this->headers['subject'];
 		return $alt;
+	}
+	/**
+	 * Generate Light version of UUID
+	 * @return string
+	 */
+	function genID($minutes=10, $moreAccurate=false) {
+		$time = time();
+		if(isset($this->getHeaders['date'])
+		&& $this->getHeaders['date'] > 0x3B9ACA00)
+			$time = $this->getHeaders['date'];
+
+		if($moreAccurate){
+			$r = print_r($this, true);
+		}else{
+			$r = $this->getSubject('<empty>')
+				.$this->getFrom()
+				.$this->getTo()
+				.$this->getBody('text/plain', true)['body']
+				.$this->getBody('text/html',  true)['body'];
+		}
+		$r = hash('sha256', $r);
+
+		$minutes = $minutes * 60;
+		$time = floor($time/$minutes)*$minutes;
+
+		return $time.'!'.$r;
 	}
 }
